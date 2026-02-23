@@ -3,15 +3,15 @@
 Benchmarking overhead of popular Python agent frameworks for local LLM tool calling
 (Qwen3 8B via Ollama, RTX 4070).
 
-## Results
+## Results (latest run)
 
 | Framework | Avg time / question | Avg tool calls | Overhead vs raw |
 |---|---|---|---|
-| **Raw Ollama** (Python client) | **3.5s** | 1.0 | 1x (baseline) |
-| **Deep Agents** (LangGraph) | 19.1s | 1.0 | ~5.5x |
-| **Google ADK** (LiteLLM) | 31.7s | 1.2 | ~9x |
+| **Raw Ollama** (Python client) | **2.29s** | 1.0 | 1x (baseline) |
+| **Deep Agents** (LangGraph) | 29.00s | 1.4 | ~12.7x |
+| **Google ADK** (LiteLLM) | 26.07s | 1.0 | ~11.4x |
 
-All 3 frameworks answered all 5 questions correctly. The difference is **pure framework overhead**.
+All 3 frameworks answered all 5 questions correctly in the latest run. The difference is **pure framework overhead**.
 
 ## Setup
 
@@ -23,8 +23,8 @@ All 3 frameworks answered all 5 questions correctly. The difference is **pure fr
 ## Why the gap?
 
 - **Raw Ollama** talks directly to the model with zero translation layers
-- **Deep Agents / LangGraph** adds ~5.5x overhead — worth it when you need durable execution, memory, or subagents
-- **Google ADK** routes through LiteLLM -> OpenAI-compat -> Ollama (3 layers), making it ~9x slower for local inference
+- **Deep Agents / LangGraph** adds ~12.7x overhead in the latest run — worth it when you need durable execution, memory, or subagents
+- **Google ADK** routes through LiteLLM -> OpenAI-compat -> Ollama (3 layers), adding ~11.4x overhead in the latest run
 
 ## Questions tested
 
@@ -93,9 +93,9 @@ dependencies automatically — no manual `pip install` needed.
 Each run appends a one-line summary, e.g.:
 
 ```
-2026-02-22 09:00:00 | raw_ollama                 | 5/5 passed | avg  3.50s | 1.0 calls/q
-2026-02-22 09:01:00 | deep_agents                | 5/5 passed | avg 19.10s | 1.0 calls/q
-2026-02-22 09:02:00 | google_adk                 | 5/5 passed | avg 31.70s | 1.2 calls/q
+2026-02-22 22:16:50 | raw_ollama                 | 5/5 passed | avg  2.29s | TTFT 1.118s | 1.0 calls/q
+2026-02-22 22:19:16 | deep_agents                | 5/5 passed | avg 29.00s | TTFT 1.950s | 1.4 calls/q
+2026-02-22 22:21:29 | google_adk                 | 5/5 passed | avg 26.07s | TTFT 18.212s | 1.0 calls/q
 ```
 
 The log file is git-ignored so it stays local.
