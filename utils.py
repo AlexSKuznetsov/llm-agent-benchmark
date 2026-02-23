@@ -4,8 +4,8 @@ import duckdb
 from datetime import datetime
 from pathlib import Path
 
-MODEL     = "qwen3:8b"
-LOG_FILE  = Path(__file__).parent / "bench_results.log"
+MODEL    = "qwen3:8b"
+LOG_FILE = Path(__file__).parent / "bench_results.log"
 
 QUESTIONS = [
     "What is the total revenue per category?",
@@ -14,6 +14,8 @@ QUESTIONS = [
     "What are the top 3 best-selling products by quantity?",
     "Which product has the best revenue-to-quantity ratio?",
 ]
+
+SEP = chr(9552) * 62
 
 
 def setup_db() -> duckdb.DuckDBPyConnection:
@@ -66,8 +68,7 @@ def fmt_table(result) -> str:
     fmt   = "  ".join(f"{{:<{w}}}" for w in widths)
     lines = [fmt.format(*cols), "  ".join("-" * w for w in widths)]
     lines += [fmt.format(*[str(v) for v in row]) for row in rows]
-    return "
-".join(lines)
+    return "\n".join(lines)
 
 
 def make_query_runner(con: duckdb.DuckDBPyConnection):
@@ -97,16 +98,16 @@ def print_summary(name: str, results: list, times: list) -> None:
     passed    = sum(1 for r in results if r["success"])
     avg_calls = sum(r["tool_calls"] for r in results) / len(results)
     avg_time  = sum(times) / len(times)
-    print(f"
-{chr(9552)*62}")
+    print()
+    print(SEP)
     print(f"  SUMMARY  ({name})")
-    print(chr(9552)*62)
+    print(SEP)
     print(f"  Passed           : {passed}/{len(results)}")
     print(f"  Avg tool calls/Q : {avg_calls:.1f}")
     print(f"  Avg time/Q       : {avg_time:.2f}s")
     for i, (q, r) in enumerate(zip(QUESTIONS, results), 1):
         status = "OK" if r["success"] else "FAIL"
-        print(f"  [{status}] Q{i} — {r['tool_calls']} call(s)  {r['time']:.1f}s  |  {q[:45]}")
+        print(f"  [{status}] Q{i} - {r['tool_calls']} call(s)  {r['time']:.1f}s  |  {q[:45]}")
     print()
 
 
@@ -116,10 +117,9 @@ def append_log(name: str, results: list, times: list) -> None:
     avg_calls = sum(r["tool_calls"] for r in results) / len(results)
     avg_time  = sum(times) / len(times)
     ts        = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line      = (
+    line = (
         f"{ts} | {name:<26} | {passed}/{len(results)} passed"
-        f" | avg {avg_time:5.2f}s | {avg_calls:.1f} calls/q
-"
+        f" | avg {avg_time:5.2f}s | {avg_calls:.1f} calls/q\n"
     )
     with open(LOG_FILE, "a") as f:
         f.write(line)

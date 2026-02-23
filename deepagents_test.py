@@ -9,10 +9,10 @@ from langchain_ollama import ChatOllama
 from langchain.tools import tool
 from deepagents import create_deep_agent
 from langchain_core.messages import AIMessage, ToolMessage
-from utils import MODEL, QUESTIONS, setup_db, make_query_runner, print_summary, append_log
+from utils import MODEL, QUESTIONS, SEP, setup_db, make_query_runner, print_summary, append_log
 
-con       = setup_db()
-_run_q    = make_query_runner(con)
+con    = setup_db()
+_run_q = make_query_runner(con)
 
 
 @tool
@@ -36,16 +36,16 @@ agent = create_deep_agent(
     tools=[run_duckdb_query],
     system_prompt=(
         "You are a data analyst. Use run_duckdb_query to answer questions. "
-        "Always query the database — never guess numbers."
+        "Always query the database - never guess numbers."
     ),
 )
 
 
 def run_test(question: str) -> dict:
-    print(f"
-{chr(9552)*62}
-  Q: {question}
-{chr(9552)*62}")
+    print()
+    print(SEP)
+    print(f"  Q: {question}")
+    print(SEP)
     result          = agent.invoke({"messages": [{"role": "user", "content": question}]})
     messages        = result.get("messages", [])
     tool_calls_made = 0
@@ -53,17 +53,17 @@ def run_test(question: str) -> dict:
         if isinstance(msg, AIMessage) and msg.tool_calls:
             for tc in msg.tool_calls:
                 tool_calls_made += 1
-                print(f"
-  [tool call #{tool_calls_made}] {tc['name']}
-  SQL: {tc.get('args',{}).get('sql','')}")
+                print()
+                print(f"  [tool call #{tool_calls_made}] {tc['name']}")
+                print(f"  SQL: {tc.get('args', {}).get('sql', '')}")
         if isinstance(msg, ToolMessage):
-            print(f"  Result:
-{msg.content}")
-    final = next((m for m in reversed(messages) if isinstance(m, AIMessage) and m.content), None)
+            print(f"  Result:")
+            print(msg.content)
+    final  = next((m for m in reversed(messages) if isinstance(m, AIMessage) and m.content), None)
     answer = final.content.strip() if final else "(no answer)"
-    print(f"
-  [answer]
-{answer}")
+    print()
+    print("  [answer]")
+    print(answer)
     return {"success": bool(final), "tool_calls": tool_calls_made}
 
 

@@ -6,10 +6,10 @@
 
 import time
 import ollama
-from utils import MODEL, QUESTIONS, setup_db, make_query_runner, print_summary, append_log
+from utils import MODEL, QUESTIONS, SEP, setup_db, make_query_runner, print_summary, append_log
 
-con          = setup_db()
-run_query    = make_query_runner(con)
+con       = setup_db()
+run_query = make_query_runner(con)
 
 TOOLS = [
     {
@@ -30,10 +30,10 @@ TOOL_MAP = {"run_duckdb_query": run_query}
 
 
 def run_test(question: str, max_iterations: int = 6) -> dict:
-    print(f"
-{chr(9552)*62}
-  Q: {question}
-{chr(9552)*62}")
+    print()
+    print(SEP)
+    print(f"  Q: {question}")
+    print(SEP)
     messages = [
         {"role": "system", "content": "Use run_duckdb_query tool. sales table: date,product,category,quantity,price,region"},
         {"role": "user",   "content": question},
@@ -48,19 +48,19 @@ def run_test(question: str, max_iterations: int = 6) -> dict:
                 tool_calls_made += 1
                 sql    = tc.function.arguments.get("sql", "")
                 result = TOOL_MAP[tc.function.name](sql)
-                print(f"
-  [tool call #{tool_calls_made}] {tc.function.name}
-  SQL: {sql}
-  Result:
-{result}")
+                print()
+                print(f"  [tool call #{tool_calls_made}] {tc.function.name}")
+                print(f"  SQL: {sql}")
+                print(f"  Result:")
+                print(result)
                 messages.append({"role": "tool", "content": result})
         else:
-            print(f"
-  [answer]
-{msg.content.strip()}")
+            print()
+            print("  [answer]")
+            print(msg.content.strip())
             return {"success": True, "tool_calls": tool_calls_made}
-    print("
-  [!] Max iterations reached.")
+    print()
+    print("  [!] Max iterations reached.")
     return {"success": False, "tool_calls": tool_calls_made}
 
 

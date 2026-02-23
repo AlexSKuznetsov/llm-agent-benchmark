@@ -4,12 +4,14 @@
 # ///
 """Benchmark: Google ADK + LiteLLM tool calling."""
 
-import os, time, asyncio
+import os
+import time
+import asyncio
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
-from utils import MODEL, QUESTIONS, setup_db, make_query_runner, print_summary, append_log
+from utils import MODEL, QUESTIONS, SEP, setup_db, make_query_runner, print_summary, append_log
 
 # Google ADK uses openai-compat endpoint for Ollama
 ADK_MODEL = f"openai/{MODEL}"
@@ -42,20 +44,19 @@ agent = Agent(
     name="data_analyst",
     description="A data analyst that queries a DuckDB sales database.",
     instruction=(
-        "/no_think
-"
+        "/no_think\n"
         "You are a data analyst. Use run_duckdb_query to answer questions. "
-        "Always query the database — never guess numbers."
+        "Always query the database - never guess numbers."
     ),
     tools=[run_duckdb_query],
 )
 
 
 async def run_test(question: str, runner: InMemoryRunner) -> dict:
-    print(f"
-{chr(9552)*62}
-  Q: {question}
-{chr(9552)*62}")
+    print()
+    print(SEP)
+    print(f"  Q: {question}")
+    print(SEP)
     tool_calls_made = 0
     final_answer    = ""
     async for event in runner.run_async(
@@ -68,22 +69,23 @@ async def run_test(question: str, runner: InMemoryRunner) -> dict:
                     tool_calls_made += 1
                     fc  = part.function_call
                     sql = fc.args.get("sql", "")
-                    print(f"
-  [tool call #{tool_calls_made}] {fc.name}
-  SQL: {sql}
-  Result:
-{_run_q(sql)}")
+                    res = _run_q(sql)
+                    print()
+                    print(f"  [tool call #{tool_calls_made}] {fc.name}")
+                    print(f"  SQL: {sql}")
+                    print("  Result:")
+                    print(res)
                 elif hasattr(part, "text") and part.text and event.is_final_response():
                     final_answer = part.text.strip()
     if final_answer:
-        print(f"
-  [answer]
-{final_answer}")
+        print()
+        print("  [answer]")
+        print(final_answer)
     return {"success": bool(final_answer), "tool_calls": tool_calls_made}
 
 
 async def main():
-    runner  = InMemoryRunner(agent=agent, app_name="bench")
+    runner         = InMemoryRunner(agent=agent, app_name="bench")
     results, times = [], []
     for q in QUESTIONS:
         await runner.session_service.create_session(
