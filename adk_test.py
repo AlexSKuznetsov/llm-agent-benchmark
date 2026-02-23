@@ -5,6 +5,7 @@
 """Benchmark: Google ADK + LiteLLM tool calling."""
 
 import os
+import sys
 import time
 import asyncio
 from google.adk.agents import Agent
@@ -13,7 +14,6 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 from utils import MODEL, QUESTIONS, SEP, setup_db, make_query_runner, print_summary, append_log
 
-# Google ADK uses openai-compat endpoint for Ollama
 ADK_MODEL = f"openai/{MODEL}"
 os.environ.setdefault("OPENAI_API_BASE", "http://localhost:11434/v1")
 os.environ.setdefault("OPENAI_API_KEY",  "ollama")
@@ -59,10 +59,17 @@ async def run_test(question: str, runner: InMemoryRunner) -> dict:
     print(SEP)
     tool_calls_made = 0
     final_answer    = ""
+    ttft            = None
+    t_start         = time.time()
+
     async for event in runner.run_async(
         user_id="user", session_id="session",
         new_message=types.Content(role="user", parts=[types.Part(text=question)]),
     ):
+        # Capture TTFT on first event that carries content
+        if ttft is None and event.content and event.content.parts:
+            ttft = time.time() - t_start
+
         if event.content and event.content.parts:
             for part in event.content.parts:
                 if hasattr(part, "function_call") and part.function_call:
@@ -77,16 +84,17 @@ async def run_test(question: str, runner: InMemoryRunner) -> dict:
                     print(res)
                 elif hasattr(part, "text") and part.text and event.is_final_response():
                     final_answer = part.text.strip()
+
     if final_answer:
         print()
         print("  [answer]")
         print(final_answer)
-    return {"success": bool(final_answer), "tool_calls": tool_calls_made}
+    return {"success": bool(final_answer), "tool_calls": tool_calls_made, "ttft": ttft}
 
 
 async def main():
     runner         = InMemoryRunner(agent=agent, app_name="bench")
-    results, times = [], []
+    results, times, ttfts = [], [], []
     for q in QUESTIONS:
         await runner.session_service.create_session(
             app_name="bench", user_id="user", session_id="session"
@@ -97,13 +105,19 @@ async def main():
         r["time"] = elapsed
         results.append(r)
         times.append(elapsed)
+        if r.get("ttft") is not None:
+            ttfts.append(r["ttft"])
         await runner.session_service.delete_session(
             app_name="bench", user_id="user", session_id="session"
         )
-    print_summary(f"Google ADK ({MODEL})", results, times)
-    append_log("google_adk", results, times)
+    print_summary(f"Google ADK ({MODEL})", results, times, ttfts or None)
+    append_log("google_adk", results, times, ttfts or None)
     con.close()
 
 
 if __name__ == "__main__":
+    if os.getenv("BENCH_WARMUP"):
+        print("  (packages ready)")
+        sys.exit(0)
+
     asyncio.run(main())

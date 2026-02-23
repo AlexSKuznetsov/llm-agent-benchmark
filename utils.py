@@ -3,9 +3,11 @@
 import duckdb
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 MODEL    = "qwen3:8b"
 LOG_FILE = Path(__file__).parent / "bench_results.log"
+SEP      = chr(9552) * 62
 
 QUESTIONS = [
     "What is the total revenue per category?",
@@ -14,8 +16,6 @@ QUESTIONS = [
     "What are the top 3 best-selling products by quantity?",
     "Which product has the best revenue-to-quantity ratio?",
 ]
-
-SEP = chr(9552) * 62
 
 
 def setup_db() -> duckdb.DuckDBPyConnection:
@@ -94,7 +94,12 @@ def make_query_runner(con: duckdb.DuckDBPyConnection):
     return run_duckdb_query
 
 
-def print_summary(name: str, results: list, times: list) -> None:
+def print_summary(
+    name: str,
+    results: list,
+    times: list,
+    ttfts: Optional[list] = None,
+) -> None:
     passed    = sum(1 for r in results if r["success"])
     avg_calls = sum(r["tool_calls"] for r in results) / len(results)
     avg_time  = sum(times) / len(times)
@@ -105,21 +110,31 @@ def print_summary(name: str, results: list, times: list) -> None:
     print(f"  Passed           : {passed}/{len(results)}")
     print(f"  Avg tool calls/Q : {avg_calls:.1f}")
     print(f"  Avg time/Q       : {avg_time:.2f}s")
+    if ttfts:
+        avg_ttft = sum(ttfts) / len(ttfts)
+        print(f"  Avg TTFT/Q       : {avg_ttft:.3f}s")
     for i, (q, r) in enumerate(zip(QUESTIONS, results), 1):
-        status = "OK" if r["success"] else "FAIL"
-        print(f"  [{status}] Q{i} - {r['tool_calls']} call(s)  {r['time']:.1f}s  |  {q[:45]}")
+        status   = "OK" if r["success"] else "FAIL"
+        ttft_str = f"  ttft={r['ttft']:.3f}s" if r.get("ttft") is not None else ""
+        print(f"  [{status}] Q{i} - {r['tool_calls']} call(s)  {r['time']:.1f}s{ttft_str}  |  {q[:40]}")
     print()
 
 
-def append_log(name: str, results: list, times: list) -> None:
+def append_log(
+    name: str,
+    results: list,
+    times: list,
+    ttfts: Optional[list] = None,
+) -> None:
     """Append a one-line benchmark summary to bench_results.log."""
     passed    = sum(1 for r in results if r["success"])
     avg_calls = sum(r["tool_calls"] for r in results) / len(results)
     avg_time  = sum(times) / len(times)
     ts        = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ttft_part = f" | TTFT {sum(ttfts)/len(ttfts):5.3f}s" if ttfts else ""
     line = (
         f"{ts} | {name:<26} | {passed}/{len(results)} passed"
-        f" | avg {avg_time:5.2f}s | {avg_calls:.1f} calls/q\n"
+        f" | avg {avg_time:5.2f}s{ttft_part} | {avg_calls:.1f} calls/q\n"
     )
     with open(LOG_FILE, "a") as f:
         f.write(line)

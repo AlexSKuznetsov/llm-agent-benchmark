@@ -4,6 +4,8 @@
 # ///
 """Benchmark: Raw Ollama Python client tool calling."""
 
+import os
+import sys
 import time
 import ollama
 from utils import MODEL, QUESTIONS, SEP, setup_db, make_query_runner, print_summary, append_log
@@ -39,10 +41,21 @@ def run_test(question: str, max_iterations: int = 6) -> dict:
         {"role": "user",   "content": question},
     ]
     tool_calls_made = 0
+    ttft            = None          # captured on first LLM call only
+
     for _ in range(max_iterations):
-        response = ollama.chat(model=MODEL, messages=messages, tools=TOOLS, think=False)
-        msg      = response.message
+        t_call = time.time()
+        stream = ollama.chat(model=MODEL, messages=messages, tools=TOOLS, think=False, stream=True)
+
+        full_response = None
+        for chunk in stream:
+            if ttft is None:            # first token of first call
+                ttft = time.time() - t_call
+            full_response = chunk       # keep updating; last chunk is complete
+
+        msg = full_response.message
         messages.append(msg)
+
         if msg.tool_calls:
             for tc in msg.tool_calls:
                 tool_calls_made += 1
@@ -51,21 +64,26 @@ def run_test(question: str, max_iterations: int = 6) -> dict:
                 print()
                 print(f"  [tool call #{tool_calls_made}] {tc.function.name}")
                 print(f"  SQL: {sql}")
-                print(f"  Result:")
+                print("  Result:")
                 print(result)
                 messages.append({"role": "tool", "content": result})
         else:
             print()
             print("  [answer]")
             print(msg.content.strip())
-            return {"success": True, "tool_calls": tool_calls_made}
+            return {"success": True, "tool_calls": tool_calls_made, "ttft": ttft}
+
     print()
     print("  [!] Max iterations reached.")
-    return {"success": False, "tool_calls": tool_calls_made}
+    return {"success": False, "tool_calls": tool_calls_made, "ttft": ttft}
 
 
 if __name__ == "__main__":
-    results, times = [], []
+    if os.getenv("BENCH_WARMUP"):
+        print("  (packages ready)")
+        sys.exit(0)
+
+    results, times, ttfts = [], [], []
     for q in QUESTIONS:
         t0      = time.time()
         r       = run_test(q)
@@ -73,6 +91,9 @@ if __name__ == "__main__":
         r["time"] = elapsed
         results.append(r)
         times.append(elapsed)
-    print_summary(f"Raw Ollama ({MODEL})", results, times)
-    append_log("raw_ollama", results, times)
+        if r.get("ttft") is not None:
+            ttfts.append(r["ttft"])
+
+    print_summary(f"Raw Ollama ({MODEL})", results, times, ttfts or None)
+    append_log("raw_ollama", results, times, ttfts or None)
     con.close()
