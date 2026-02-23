@@ -10,7 +10,7 @@ import time
 from typing import Any
 from langchain_ollama import ChatOllama
 from langchain.tools import tool
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain_core.callbacks.base import BaseCallbackHandler
 from deepagents import create_deep_agent
 from langchain_core.messages import AIMessage, ToolMessage
 from utils import MODEL, QUESTIONS, SEP, setup_db, make_query_runner, print_summary, append_log
@@ -47,7 +47,7 @@ class TTFTCallback(BaseCallbackHandler):
         self.reset()
 
     def on_llm_start(self, serialized: dict, prompts: list, **kwargs: Any) -> None:
-        if not self._done:
+        if self._t_start is None:
             self._t_start = time.time()
 
     def on_llm_new_token(self, token: str, **kwargs: Any) -> None:

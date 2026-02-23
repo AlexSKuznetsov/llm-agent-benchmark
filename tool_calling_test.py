@@ -36,7 +36,7 @@ def run_test(question: str, max_iterations: int = 6) -> dict:
     print(SEP)
     print(f"  Q: {question}")
     print(SEP)
-    messages = [
+    messages: list[dict[str, object]] = [
         {"role": "system", "content": "Use run_duckdb_query tool. sales table: date,product,category,quantity,price,region"},
         {"role": "user",   "content": question},
     ]
@@ -47,31 +47,45 @@ def run_test(question: str, max_iterations: int = 6) -> dict:
         t_call = time.time()
         stream = ollama.chat(model=MODEL, messages=messages, tools=TOOLS, think=False, stream=True)
 
-        full_response = None
+        content_parts = []
+        tool_calls = []
         for chunk in stream:
             if ttft is None:            # first token of first call
                 ttft = time.time() - t_call
-            full_response = chunk       # keep updating; last chunk is complete
+            chunk_msg = getattr(chunk, "message", None)
+            if not chunk_msg:
+                continue
+            if chunk_msg.content:
+                content_parts.append(chunk_msg.content)
+            if chunk_msg.tool_calls:
+                tool_calls = chunk_msg.tool_calls
 
-        msg = full_response.message
-        messages.append(msg)
+        assistant_msg: dict[str, object] = {
+            "role": "assistant",
+            "content": "".join(content_parts),
+        }
+        if tool_calls:
+            assistant_msg["tool_calls"] = tool_calls
+        messages.append(assistant_msg)
 
-        if msg.tool_calls:
-            for tc in msg.tool_calls:
+        if tool_calls:
+            for tc in tool_calls:
                 tool_calls_made += 1
+                fn     = tc.function.name
                 sql    = tc.function.arguments.get("sql", "")
-                result = TOOL_MAP[tc.function.name](sql)
+                result = TOOL_MAP[fn](sql)
                 print()
-                print(f"  [tool call #{tool_calls_made}] {tc.function.name}")
+                print(f"  [tool call #{tool_calls_made}] {fn}")
                 print(f"  SQL: {sql}")
                 print("  Result:")
                 print(result)
                 messages.append({"role": "tool", "content": result})
         else:
+            answer = str(assistant_msg["content"]).strip()
             print()
             print("  [answer]")
-            print(msg.content.strip())
-            return {"success": True, "tool_calls": tool_calls_made, "ttft": ttft}
+            print(answer)
+            return {"success": bool(answer), "tool_calls": tool_calls_made, "ttft": ttft}
 
     print()
     print("  [!] Max iterations reached.")
