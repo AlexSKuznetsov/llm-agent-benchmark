@@ -28,7 +28,7 @@ fi
 # 3. Pre-install all dependencies (warms up uv venv cache)
 echo ""
 echo "--- Pre-installing dependencies ---"
-for script in tool_calling_test.py deepagents_test.py adk_test.py; do
+for script in tool_calling_test.py deepagents_test.py adk_test.py pydanticai_test.py; do
     echo -n "  ${script} ... "
     BENCH_WARMUP=1 uv run "${script}"
 done
@@ -45,6 +45,10 @@ uv run deepagents_test.py
 echo ""
 echo "--- Google ADK ---"
 uv run adk_test.py
+
+echo ""
+echo "--- Pydantic AI ---"
+uv run pydanticai_test.py
 
 echo ""
 echo "=== Done! Results saved to bench_results.log ==="

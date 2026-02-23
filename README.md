@@ -1,17 +1,18 @@
 # LLM Agent Framework Benchmark
 
 Benchmarking overhead of popular Python agent frameworks for local LLM tool calling
-(Qwen3 8B via Ollama, RTX 4070).
+from the latest single run (Qwen3 8B via Ollama, RTX 4070).
 
 ## Results (latest run)
 
 | Framework | Avg time / question | Avg tool calls | Overhead vs raw |
 |---|---|---|---|
-| **Raw Ollama** (Python client) | **2.29s** | 1.0 | 1x (baseline) |
-| **Deep Agents** (LangGraph) | 29.00s | 1.4 | ~12.7x |
-| **Google ADK** (LiteLLM) | 26.07s | 1.0 | ~11.4x |
+| **Raw Ollama** (Python client) | **2.42s** | 1.0 | 1x (baseline) |
+| **Deep Agents** (LangGraph) | 31.58s | 1.6 | ~13.0x |
+| **Google ADK** (LiteLLM) | 21.42s | 1.0 | ~8.9x |
+| **Pydantic AI** (Ollama provider) | 20.91s | 1.0 | ~8.6x |
 
-All 3 frameworks answered all 5 questions correctly in the latest run. The difference is **pure framework overhead**.
+All 4 frameworks answered all 5 questions correctly in the latest run. The difference is **pure framework overhead**.
 
 ## Setup
 
@@ -23,8 +24,9 @@ All 3 frameworks answered all 5 questions correctly in the latest run. The diffe
 ## Why the gap?
 
 - **Raw Ollama** talks directly to the model with zero translation layers
-- **Deep Agents / LangGraph** adds ~12.7x overhead in the latest run — worth it when you need durable execution, memory, or subagents
-- **Google ADK** routes through LiteLLM -> OpenAI-compat -> Ollama (3 layers), adding ~11.4x overhead in the latest run
+- **Deep Agents / LangGraph** adds ~13.0x overhead in the latest run — worth it when you need durable execution, memory, or subagents
+- **Google ADK** routes through LiteLLM -> OpenAI-compat -> Ollama (3 layers), adding ~8.9x overhead in the latest run
+- **Pydantic AI** uses the Ollama provider path and measured ~8.6x overhead in the latest run
 
 ## Questions tested
 
@@ -42,7 +44,8 @@ bench/
 ├── tool_calling_test.py    # benchmark: Raw Ollama Python client
 ├── deepagents_test.py      # benchmark: Deep Agents + LangChain Ollama
 ├── adk_test.py             # benchmark: Google ADK + LiteLLM
-├── run_all.sh              # run all three benchmarks in sequence
+├── pydanticai_test.py      # benchmark: Pydantic AI + Ollama provider
+├── run_all.sh              # run all four benchmarks in sequence
 ├── bench_results.log       # auto-generated results log (git-ignored)
 └── .gitignore
 ```
@@ -74,7 +77,7 @@ ollama pull qwen3:8b
 `run_all.sh` will:
 1. Verify Ollama is reachable
 2. Pull `qwen3:8b` if not already present
-3. Run all three scripts with `uv run`
+3. Run all four scripts with `uv run`
 4. Append one summary line per run to `bench_results.log`
 
 ### Individual scripts
@@ -83,6 +86,7 @@ ollama pull qwen3:8b
 uv run tool_calling_test.py
 uv run deepagents_test.py
 uv run adk_test.py
+uv run pydanticai_test.py
 ```
 
 `uv` creates an isolated virtual environment and installs declared
@@ -93,9 +97,10 @@ dependencies automatically — no manual `pip install` needed.
 Each run appends a one-line summary, e.g.:
 
 ```
-2026-02-22 22:16:50 | raw_ollama                 | 5/5 passed | avg  2.29s | TTFT 1.118s | 1.0 calls/q
-2026-02-22 22:19:16 | deep_agents                | 5/5 passed | avg 29.00s | TTFT 1.950s | 1.4 calls/q
-2026-02-22 22:21:29 | google_adk                 | 5/5 passed | avg 26.07s | TTFT 18.212s | 1.0 calls/q
+2026-02-22 22:43:03 | raw_ollama                 | 5/5 passed | avg  2.42s | TTFT 1.258s | 1.0 calls/q
+2026-02-22 22:45:42 | deep_agents                | 5/5 passed | avg 31.58s | TTFT 1.912s | 1.6 calls/q
+2026-02-22 22:47:31 | google_adk                 | 5/5 passed | avg 21.42s | TTFT 14.365s | 1.0 calls/q
+2026-02-22 22:55:52 | pydantic_ai                | 5/5 passed | avg 20.91s | TTFT 0.251s | 1.0 calls/q
 ```
 
 The log file is git-ignored so it stays local.
