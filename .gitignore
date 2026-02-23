@@ -1,0 +1,12 @@
+# UV / Python environments
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Benchmark output
+bench_results.log
+
+# UV lock (optional — uncomment to pin deps)
+# uv.lock
